@@ -6,81 +6,74 @@ import {
   provider,
   undoManager,
   yBindings,
-  yShapes
+  yShapes,
 } from "../store";
 
-export function useMultiplayerState(roomId: string) {
+// Генерация или получение roomID из URL
+// Если URL — корень (/), создаём новый random ID и меняем адрес
+let roomID = window.location.pathname.slice(1); // убираем ведущий /
+if (!roomID) {
+  roomID = crypto.randomUUID().slice(0, 8); // короткий ID, например abc12345
+  history.replaceState({}, "", `/${roomID}`);
+}
+
+export function useMultiplayerState() {
+  // roomId больше не нужен как параметр
   const tldrawRef = useRef<TldrawApp>();
 
   const onMount = useCallback(
     (app: TldrawApp) => {
-      app.loadRoom(roomId);
+      app.loadRoom(roomID);
       app.pause();
       tldrawRef.current = app;
 
+      // Загружаем текущее состояние из Yjs
       app.replacePageContent(
         Object.fromEntries(yShapes.entries()),
         Object.fromEntries(yBindings.entries()),
-        {}
+        {},
       );
     },
-    [roomId]
+    [], // roomID теперь глобальный, не зависит от пропсов
   );
 
   const onChangePage = useCallback(
     (
       app: TldrawApp,
       shapes: Record<string, TDShape | undefined>,
-      bindings: Record<string, TDBinding | undefined>
+      bindings: Record<string, TDBinding | undefined>,
     ) => {
       undoManager.stopCapturing();
       doc.transact(() => {
         Object.entries(shapes).forEach(([id, shape]) => {
-          if (!shape) {
-            yShapes.delete(id);
-          } else {
-            yShapes.set(shape.id, shape);
-          }
+          if (!shape) yShapes.delete(id);
+          else yShapes.set(shape.id, shape);
         });
         Object.entries(bindings).forEach(([id, binding]) => {
-          if (!binding) {
-            yBindings.delete(id);
-          } else {
-            yBindings.set(binding.id, binding);
-          }
+          if (!binding) yBindings.delete(id);
+          else yBindings.set(binding.id, binding);
         });
       });
     },
-    []
+    [],
   );
 
-  const onUndo = useCallback(() => {
-    undoManager.undo();
-  }, []);
+  const onUndo = useCallback(() => undoManager.undo(), []);
+  const onRedo = useCallback(() => undoManager.redo(), []);
 
-  const onRedo = useCallback(() => {
-    undoManager.redo();
-  }, []);
-
-  /**
-   * Callback to update user's (self) presence
-   */
   const onChangePresence = useCallback((app: TldrawApp, user: TDUser) => {
     awareness.setLocalStateField("tdUser", user);
   }, []);
 
-  /**
-   * Update app users whenever there is a change in the room users
-   */
+  // Остальной код (onChangeAwareness, observeDeep, disconnect) остаётся без изменений
   useEffect(() => {
     const onChangeAwareness = () => {
       const tldraw = tldrawRef.current;
-
       if (!tldraw || !tldraw.room) return;
 
       const others = Array.from(awareness.getStates().entries())
-        .filter(([key, _]) => key !== awareness.clientID)
-        .map(([_, state]) => state)
+        .filter(([key]) => key !== awareness.clientID)
+        .map(([, state]) => state)
         .filter((user) => user.tdUser !== undefined);
 
       const ids = others.map((other) => other.tdUser.id as string);
@@ -95,25 +88,20 @@ export function useMultiplayerState(roomId: string) {
     };
 
     awareness.on("change", onChangeAwareness);
-
     return () => awareness.off("change", onChangeAwareness);
   }, []);
 
   useEffect(() => {
     function handleChanges() {
       const tldraw = tldrawRef.current;
-
       if (!tldraw) return;
-
       tldraw.replacePageContent(
         Object.fromEntries(yShapes.entries()),
         Object.fromEntries(yBindings.entries()),
-        {}
+        {},
       );
     }
-
     yShapes.observeDeep(handleChanges);
-
     return () => yShapes.unobserveDeep(handleChanges);
   }, []);
 
@@ -122,7 +110,6 @@ export function useMultiplayerState(roomId: string) {
       provider.disconnect();
     }
     window.addEventListener("beforeunload", handleDisconnect);
-
     return () => window.removeEventListener("beforeunload", handleDisconnect);
   }, []);
 
@@ -131,6 +118,6 @@ export function useMultiplayerState(roomId: string) {
     onChangePage,
     onUndo,
     onRedo,
-    onChangePresence
+    onChangePresence,
   };
 }
