@@ -11,11 +11,10 @@ function Editor({ roomId }: { roomId: string }) {
   const fileSystemEvents = useFileSystem();
   const { onMount, ...events } = useMultiplayerState(roomId);
   const [app, setApp] = useState<TldrawApp | null>(null);
-  
+
   // Устанавливаем русский язык при загрузке
   useEffect(() => {
     if (app) {
-      // Метод 3: Принудительно выбираем русский язык в меню
       // Нужно найти элемент кнопки русского языка и кликнуть на него
       setTimeout(() => {
         const ruButton = document.getElementById('TD-MenuItem-Language-ru');
@@ -26,37 +25,37 @@ function Editor({ roomId }: { roomId: string }) {
             enButton.setAttribute('aria-checked', 'false');
             enButton.setAttribute('data-state', 'unchecked');
           }
-          
+
           // Ставим галочку на русский
           ruButton.setAttribute('aria-checked', 'true');
           ruButton.setAttribute('data-state', 'checked');
-          
+
           // Обновляем язык в приложении
           app.setSetting('language', 'ru');
         }
       }, 100);
     }
   }, [app]);
-  
+
   const handleMount = useCallback((appInstance: TldrawApp) => {
     setApp(appInstance);
-    
+
     // Применяем русские настройки сразу
     appInstance.setSetting('language', 'ru');
-    
-    
+
+
     // Если есть оригинальный обработчик, вызываем его
     if (onMount) {
       onMount(appInstance);
     }
   }, [onMount]);
-  
+
   return (
     <Tldraw
       autofocus
-      showPages={false}
+      //showPages={false}
       onMount={handleMount}
-      showMenu={false}
+      //showMenu={false}
       {...fileSystemEvents}
       {...events}
     />
@@ -79,7 +78,7 @@ export default function App() {
   // Применяем русский язык для всей страницы
   useEffect(() => {
     document.documentElement.lang = 'ru';
-    
+
     // Меняем язык в localStorage tldraw
     localStorage.setItem('tldraw_language', 'ru');
     localStorage.setItem('tldraw_settings', JSON.stringify({
@@ -87,7 +86,7 @@ export default function App() {
       language: 'ru'
     }));
   }, []);
-  
+
   return (
     <div className="tldraw custom-theme" lang="ru">
       <Info />
