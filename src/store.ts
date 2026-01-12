@@ -11,12 +11,12 @@ export const roomID = `y-tldraw-${VERSION}`;
 
 // Create a websocket provider
 export const provider = new WebsocketProvider(
-  "wss://demos.yjs.dev",
+  "wss://draw-yjss-server-production.up.railway.app",
   roomID,
   doc,
   {
-    connect: true
-  }
+    connect: true,
+  },
 );
 
 // Export the provider's awareness API
