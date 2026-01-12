@@ -2,5 +2,5 @@ import { render } from "react-dom";
 
 import App from "./App";
 
-const rootElement = document.getElementById("root");
+const rootElement = createRoot(document.getElementById("root")!);
 render(<App />, rootElement);

@@ -55,7 +55,7 @@ function Editor({ roomId }: { roomId: string }) {
   return (
     <Tldraw
       autofocus
-      //showPages={false}
+      showPages={false}
       onMount={handleMount}
       showMenu={false}
       {...fileSystemEvents}
