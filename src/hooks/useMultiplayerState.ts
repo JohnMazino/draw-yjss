@@ -6,7 +6,6 @@ import {
   ImageShape,
   VideoShape,
 } from "@tldraw/tldraw";
-
 import { useCallback, useEffect, useRef } from "react";
 import {
   awareness,
@@ -17,28 +16,21 @@ import {
   yShapes,
 } from "../store";
 
-// Type guard (теперь используем ImageShape и VideoShape)
+// Type guard
 function isImageOrVideoShape(shape: TDShape): shape is ImageShape | VideoShape {
   return shape.type === "image" || shape.type === "video";
 }
 
-// Функция загрузки на сервер
 async function uploadToMyServer(file: File | Blob): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
-
   const res = await fetch(
     "https://draw-yjss-assets-production.up.railway.app/upload",
-    {
-      method: "POST",
-      body: formData,
-    },
+    { method: "POST", body: formData },
   );
-
   if (!res.ok) {
     throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
   }
-
   const { url } = await res.json();
   return url;
 }
@@ -51,7 +43,6 @@ export function useMultiplayerState(roomId: string) {
       app.loadRoom(roomId);
       app.pause();
       tldrawRef.current = app;
-
       app.replacePageContent(
         Object.fromEntries(yShapes.entries()),
         Object.fromEntries(yBindings.entries()),
@@ -67,9 +58,7 @@ export function useMultiplayerState(roomId: string) {
       shapes: Record<string, TDShape | undefined>,
       bindings: Record<string, TDBinding | undefined>,
     ) => {
-      // 1. Стандартное сохранение в Yjs
       undoManager.stopCapturing();
-
       doc.transact(() => {
         Object.entries(shapes).forEach(([id, shape]) => {
           if (!shape) {
@@ -78,7 +67,6 @@ export function useMultiplayerState(roomId: string) {
             yShapes.set(shape.id, shape);
           }
         });
-
         Object.entries(bindings).forEach(([id, binding]) => {
           if (!binding) {
             yBindings.delete(id);
@@ -88,12 +76,11 @@ export function useMultiplayerState(roomId: string) {
         });
       });
 
-      // 2. Обработка ассетов (только новые локальные src)
       const assetPromises = Object.values(shapes)
         .filter((shape): shape is TDShape => !!shape)
         .filter(isImageOrVideoShape)
         .filter((shape) => {
-          const src = shape.props.src;
+          const src = (shape as any).props?.src;
           return (
             src &&
             (src.startsWith("blob:") || src.startsWith("data:")) &&
@@ -103,26 +90,23 @@ export function useMultiplayerState(roomId: string) {
         })
         .map(async (shape) => {
           try {
+            const shapeProps = (shape as any).props;
             let file: Blob;
 
-            if (shape.props.src!.startsWith("data:")) {
-              const [, base64] = shape.props.src!.split(",");
+            if (shapeProps.src!.startsWith("data:")) {
+              const [, base64] = shapeProps.src!.split(",");
               const byteString = atob(base64);
               const ab = new ArrayBuffer(byteString.length);
               const ia = new Uint8Array(ab);
-
               for (let i = 0; i < byteString.length; i++) {
                 ia[i] = byteString.charCodeAt(i);
               }
-
               const mime =
-                shape.props.mimeType ||
+                shapeProps.mimeType ||
                 (shape.type === "image" ? "image/png" : "video/mp4");
-
               file = new Blob([ab], { type: mime });
             } else {
-              // blob:
-              const response = await fetch(shape.props.src!);
+              const response = await fetch(shapeProps.src!);
               if (!response.ok) {
                 throw new Error(`Blob fetch failed: ${response.status}`);
               }
@@ -131,16 +115,14 @@ export function useMultiplayerState(roomId: string) {
 
             const newUrl = await uploadToMyServer(file);
 
-            // Обновляем в Yjs
             doc.transact(() => {
               const updatedShape = {
                 ...shape,
-                props: { ...shape.props, src: newUrl },
+                props: { ...shapeProps, src: newUrl },
               };
               yShapes.set(shape.id, updatedShape);
             });
 
-            // Обновляем в текущем app
             app?.patchCreate([updatedShape]);
           } catch (err) {
             console.error(`Ошибка обработки ассета ${shape.id}:`, err);
