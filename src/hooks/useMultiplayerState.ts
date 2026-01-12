@@ -3,9 +3,10 @@ import {
   TDShape,
   TDUser,
   TldrawApp,
-  TDImageShape,
-  TDVideoShape,
+  ImageShape,
+  VideoShape,
 } from "@tldraw/tldraw";
+
 import { useCallback, useEffect, useRef } from "react";
 import {
   awareness,
@@ -16,14 +17,12 @@ import {
   yShapes,
 } from "../store";
 
-// Type guard для image и video shapes (чтобы TypeScript не ругался на .props)
-function isImageOrVideoShape(
-  shape: TDShape,
-): shape is TDImageShape | TDVideoShape {
+// Type guard (теперь используем ImageShape и VideoShape)
+function isImageOrVideoShape(shape: TDShape): shape is ImageShape | VideoShape {
   return shape.type === "image" || shape.type === "video";
 }
 
-// Функция загрузки файла на твой сервер
+// Функция загрузки на сервер
 async function uploadToMyServer(file: File | Blob): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
@@ -68,7 +67,7 @@ export function useMultiplayerState(roomId: string) {
       shapes: Record<string, TDShape | undefined>,
       bindings: Record<string, TDBinding | undefined>,
     ) => {
-      // 1. Обычное сохранение изменений в Yjs
+      // 1. Стандартное сохранение в Yjs
       undoManager.stopCapturing();
 
       doc.transact(() => {
@@ -89,7 +88,7 @@ export function useMultiplayerState(roomId: string) {
         });
       });
 
-      // 2. Обработка только тех image/video, у которых src ещё локальный
+      // 2. Обработка ассетов (только новые локальные src)
       const assetPromises = Object.values(shapes)
         .filter((shape): shape is TDShape => !!shape)
         .filter(isImageOrVideoShape)
@@ -122,19 +121,17 @@ export function useMultiplayerState(roomId: string) {
 
               file = new Blob([ab], { type: mime });
             } else {
-              // blob: URL
+              // blob:
               const response = await fetch(shape.props.src!);
               if (!response.ok) {
-                throw new Error(
-                  `Не удалось загрузить blob: ${response.status}`,
-                );
+                throw new Error(`Blob fetch failed: ${response.status}`);
               }
               file = await response.blob();
             }
 
             const newUrl = await uploadToMyServer(file);
 
-            // Обновляем shape в Yjs
+            // Обновляем в Yjs
             doc.transact(() => {
               const updatedShape = {
                 ...shape,
@@ -143,15 +140,13 @@ export function useMultiplayerState(roomId: string) {
               yShapes.set(shape.id, updatedShape);
             });
 
-            // Обновляем локальное состояние приложения
+            // Обновляем в текущем app
             app?.patchCreate([updatedShape]);
           } catch (err) {
-            console.error(`Ошибка при обработке ассета ${shape.id}:`, err);
-            // Можно добавить логику показа ошибки пользователю
+            console.error(`Ошибка обработки ассета ${shape.id}:`, err);
           }
         });
 
-      // Ждём завершения всех загрузок (если они были)
       if (assetPromises.length > 0) {
         await Promise.all(assetPromises);
       }
@@ -171,7 +166,6 @@ export function useMultiplayerState(roomId: string) {
     awareness.setLocalStateField("tdUser", user);
   }, []);
 
-  // Обновление списка пользователей
   useEffect(() => {
     const onChangeAwareness = () => {
       const tldraw = tldrawRef.current;
@@ -197,7 +191,6 @@ export function useMultiplayerState(roomId: string) {
     return () => awareness.off("change", onChangeAwareness);
   }, []);
 
-  // Синхронизация изменений из Yjs в tldraw
   useEffect(() => {
     function handleChanges() {
       const tldraw = tldrawRef.current;
@@ -214,7 +207,6 @@ export function useMultiplayerState(roomId: string) {
     return () => yShapes.unobserveDeep(handleChanges);
   }, []);
 
-  // Отключение при закрытии страницы
   useEffect(() => {
     function handleDisconnect() {
       provider.disconnect();
