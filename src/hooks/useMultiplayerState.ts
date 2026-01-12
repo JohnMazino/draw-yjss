@@ -3,7 +3,8 @@ import {
   TDShape,
   TDUser,
   TldrawApp,
-  TDAssetType,
+  TDImageShape,
+  TDVideoShape,
 } from "@tldraw/tldraw";
 import { useCallback, useEffect, useRef } from "react";
 import {
@@ -15,7 +16,14 @@ import {
   yShapes,
 } from "../store";
 
-// функция загрузки
+// Type guard для image и video shapes (чтобы TypeScript не ругался на .props)
+function isImageOrVideoShape(
+  shape: TDShape,
+): shape is TDImageShape | TDVideoShape {
+  return shape.type === "image" || shape.type === "video";
+}
+
+// Функция загрузки файла на твой сервер
 async function uploadToMyServer(file: File | Blob): Promise<string> {
   const formData = new FormData();
   formData.append("file", file);
@@ -28,7 +36,10 @@ async function uploadToMyServer(file: File | Blob): Promise<string> {
     },
   );
 
-  if (!res.ok) throw new Error("Upload failed");
+  if (!res.ok) {
+    throw new Error(`Upload failed: ${res.status} ${res.statusText}`);
+  }
+
   const { url } = await res.json();
   return url;
 }
@@ -57,7 +68,9 @@ export function useMultiplayerState(roomId: string) {
       shapes: Record<string, TDShape | undefined>,
       bindings: Record<string, TDBinding | undefined>,
     ) => {
+      // 1. Обычное сохранение изменений в Yjs
       undoManager.stopCapturing();
+
       doc.transact(() => {
         Object.entries(shapes).forEach(([id, shape]) => {
           if (!shape) {
@@ -66,6 +79,7 @@ export function useMultiplayerState(roomId: string) {
             yShapes.set(shape.id, shape);
           }
         });
+
         Object.entries(bindings).forEach(([id, binding]) => {
           if (!binding) {
             yBindings.delete(id);
@@ -74,35 +88,52 @@ export function useMultiplayerState(roomId: string) {
           }
         });
       });
-      const promises = Object.values(shapes)
+
+      // 2. Обработка только тех image/video, у которых src ещё локальный
+      const assetPromises = Object.values(shapes)
         .filter((shape): shape is TDShape => !!shape)
-        .filter(
-          (shape) =>
-            ((shape.type === "image" || shape.type === "video") &&
-              shape.props.src?.startsWith("blob:")) ||
-            shape.props.src?.startsWith("data:"),
-        )
+        .filter(isImageOrVideoShape)
+        .filter((shape) => {
+          const src = shape.props.src;
+          return (
+            src &&
+            (src.startsWith("blob:") || src.startsWith("data:")) &&
+            !src.startsWith("http://") &&
+            !src.startsWith("https://")
+          );
+        })
         .map(async (shape) => {
           try {
-            // Получаем blob из локального src (tldraw хранит его в assets?)
-            // В v1 часто нужно взять из app.assets или из shape (если base64)
             let file: Blob;
-            if (shape.props.src.startsWith("data:")) {
-              const base64 = shape.props.src.split(",")[1];
+
+            if (shape.props.src!.startsWith("data:")) {
+              const [, base64] = shape.props.src!.split(",");
               const byteString = atob(base64);
               const ab = new ArrayBuffer(byteString.length);
               const ia = new Uint8Array(ab);
+
               for (let i = 0; i < byteString.length; i++) {
                 ia[i] = byteString.charCodeAt(i);
               }
-              file = new Blob([ab], { type: shape.props.mimeType });
+
+              const mime =
+                shape.props.mimeType ||
+                (shape.type === "image" ? "image/png" : "video/mp4");
+
+              file = new Blob([ab], { type: mime });
             } else {
-              // blob: URL — fetch'им
-              const response = await fetch(shape.props.src);
+              // blob: URL
+              const response = await fetch(shape.props.src!);
+              if (!response.ok) {
+                throw new Error(
+                  `Не удалось загрузить blob: ${response.status}`,
+                );
+              }
               file = await response.blob();
             }
 
             const newUrl = await uploadToMyServer(file);
+
             // Обновляем shape в Yjs
             doc.transact(() => {
               const updatedShape = {
@@ -112,13 +143,18 @@ export function useMultiplayerState(roomId: string) {
               yShapes.set(shape.id, updatedShape);
             });
 
-            // Опционально: обнови в app сразу
+            // Обновляем локальное состояние приложения
             app?.patchCreate([updatedShape]);
           } catch (err) {
-            console.error("Ошибка загрузки ассета:", err);
+            console.error(`Ошибка при обработке ассета ${shape.id}:`, err);
+            // Можно добавить логику показа ошибки пользователю
           }
         });
-      await Promise.all(promises);
+
+      // Ждём завершения всех загрузок (если они были)
+      if (assetPromises.length > 0) {
+        await Promise.all(assetPromises);
+      }
     },
     [],
   );
@@ -131,25 +167,19 @@ export function useMultiplayerState(roomId: string) {
     undoManager.redo();
   }, []);
 
-  /**
-   * Callback to update user's (self) presence
-   */
   const onChangePresence = useCallback((app: TldrawApp, user: TDUser) => {
     awareness.setLocalStateField("tdUser", user);
   }, []);
 
-  /**
-   * Update app users whenever there is a change in the room users
-   */
+  // Обновление списка пользователей
   useEffect(() => {
     const onChangeAwareness = () => {
       const tldraw = tldrawRef.current;
-
       if (!tldraw || !tldraw.room) return;
 
       const others = Array.from(awareness.getStates().entries())
-        .filter(([key, _]) => key !== awareness.clientID)
-        .map(([_, state]) => state)
+        .filter(([key]) => key !== awareness.clientID)
+        .map(([, state]) => state)
         .filter((user) => user.tdUser !== undefined);
 
       const ids = others.map((other) => other.tdUser.id as string);
@@ -164,14 +194,13 @@ export function useMultiplayerState(roomId: string) {
     };
 
     awareness.on("change", onChangeAwareness);
-
     return () => awareness.off("change", onChangeAwareness);
   }, []);
 
+  // Синхронизация изменений из Yjs в tldraw
   useEffect(() => {
     function handleChanges() {
       const tldraw = tldrawRef.current;
-
       if (!tldraw) return;
 
       tldraw.replacePageContent(
@@ -182,16 +211,16 @@ export function useMultiplayerState(roomId: string) {
     }
 
     yShapes.observeDeep(handleChanges);
-
     return () => yShapes.unobserveDeep(handleChanges);
   }, []);
 
+  // Отключение при закрытии страницы
   useEffect(() => {
     function handleDisconnect() {
       provider.disconnect();
     }
-    window.addEventListener("beforeunload", handleDisconnect);
 
+    window.addEventListener("beforeunload", handleDisconnect);
     return () => window.removeEventListener("beforeunload", handleDisconnect);
   }, []);
 
