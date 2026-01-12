@@ -1,4 +1,10 @@
-import { TDBinding, TDShape, TDUser, TldrawApp } from "@tldraw/tldraw";
+import {
+  TDBinding,
+  TDShape,
+  TDUser,
+  TldrawApp,
+  TDAssetType,
+} from "@tldraw/tldraw";
 import { useCallback, useEffect, useRef } from "react";
 import {
   awareness,
@@ -8,6 +14,24 @@ import {
   yBindings,
   yShapes,
 } from "../store";
+
+// функция загрузки
+async function uploadToMyServer(file: File | Blob): Promise<string> {
+  const formData = new FormData();
+  formData.append("file", file);
+
+  const res = await fetch(
+    "https://draw-yjss-assets-production.up.railway.app/upload",
+    {
+      method: "POST",
+      body: formData,
+    },
+  );
+
+  if (!res.ok) throw new Error("Upload failed");
+  const { url } = await res.json();
+  return url;
+}
 
 export function useMultiplayerState(roomId: string) {
   const tldrawRef = useRef<TldrawApp>();
@@ -28,7 +52,7 @@ export function useMultiplayerState(roomId: string) {
   );
 
   const onChangePage = useCallback(
-    (
+    async (
       app: TldrawApp,
       shapes: Record<string, TDShape | undefined>,
       bindings: Record<string, TDBinding | undefined>,
@@ -50,6 +74,51 @@ export function useMultiplayerState(roomId: string) {
           }
         });
       });
+      const promises = Object.values(shapes)
+        .filter((shape): shape is TDShape => !!shape)
+        .filter(
+          (shape) =>
+            ((shape.type === "image" || shape.type === "video") &&
+              shape.props.src?.startsWith("blob:")) ||
+            shape.props.src?.startsWith("data:"),
+        )
+        .map(async (shape) => {
+          try {
+            // Получаем blob из локального src (tldraw хранит его в assets?)
+            // В v1 часто нужно взять из app.assets или из shape (если base64)
+            let file: Blob;
+            if (shape.props.src.startsWith("data:")) {
+              const base64 = shape.props.src.split(",")[1];
+              const byteString = atob(base64);
+              const ab = new ArrayBuffer(byteString.length);
+              const ia = new Uint8Array(ab);
+              for (let i = 0; i < byteString.length; i++) {
+                ia[i] = byteString.charCodeAt(i);
+              }
+              file = new Blob([ab], { type: shape.props.mimeType });
+            } else {
+              // blob: URL — fetch'им
+              const response = await fetch(shape.props.src);
+              file = await response.blob();
+            }
+
+            const newUrl = await uploadToMyServer(file);
+            // Обновляем shape в Yjs
+            doc.transact(() => {
+              const updatedShape = {
+                ...shape,
+                props: { ...shape.props, src: newUrl },
+              };
+              yShapes.set(shape.id, updatedShape);
+            });
+
+            // Опционально: обнови в app сразу
+            app?.patchCreate([updatedShape]);
+          } catch (err) {
+            console.error("Ошибка загрузки ассета:", err);
+          }
+        });
+      await Promise.all(promises);
     },
     [],
   );
