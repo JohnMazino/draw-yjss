@@ -59,7 +59,6 @@ a {
     right: 0;
     top: 40px;
 }
-/* Контейнер всего приложения (фон холста уже работает, оставляем) */
 .tldraw.custom-theme .tl-canvas,
 .tldraw.custom-theme .tl-canvas-container,
 .tldraw.custom-theme .tl-background {
@@ -73,30 +72,10 @@ button[id*="TD-PrimaryTools-Image"],
 .tldraw button[title*="Image"],
 .tldraw .c-eyvddw:has(svg path[d*="M2.5 1H12.5"]) {  /* SVG path из твоего HTML для image
   display: none !important;
-} */
-.tldraw button[id*="TD-HelpItem-Keyboard"] {
+}*/
+/* Убираем кнопку "?" / Help иконку полностью */
+.tldraw .c-yILjc,
+.tldraw button[aria-controls^="radix-"][aria-haspopup="dialog"],
+.tldraw button:has(svg path[d*="M5.07505 4.10001"]) {
     display: none !important;
-}
-/* Скрываем разделитель <hr> и всё после Keyboard shortcuts */
-.tldraw .c-iSCOkR hr,
-.tldraw .c-iSCOkR button[id*="TD-Link-"]               /* Github, Twitter, Discord, Sponsor */ {
-    display: none !important;
-}
-
-/* Оставляем только Language и Keyboard shortcuts — усиливаем видимость */
-.tldraw .c-iSCOkR button[id*="Language"] {
-    display: block !important;
-    visibility: visible !important;
-}
-button[id^="TD-MenuItem-Language-"]:not([id$="-ru"]):not([id$="-en"]) {
-    display: none !important;
-}
-
-button[id*="Translation-Link"] {
-    display: none !important;
-}
-
-/* Компактнее меню */
-.c-iSCOkR button {
-    padding: 6px 12px !important;
 }
