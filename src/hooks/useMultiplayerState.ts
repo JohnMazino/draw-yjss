@@ -5,6 +5,7 @@ import {
   doc,
   provider,
   undoManager,
+  yAssets,
   yBindings,
   yShapes,
 } from "../store";
@@ -21,7 +22,8 @@ export function useMultiplayerState(roomId: string) {
       app.replacePageContent(
         Object.fromEntries(yShapes.entries()),
         Object.fromEntries(yBindings.entries()),
-        {},
+        Object.fromEntries(yAssets.entries()),
+        undefined,
       );
     },
     [roomId],
@@ -124,6 +126,23 @@ export function useMultiplayerState(roomId: string) {
     window.addEventListener("beforeunload", handleDisconnect);
 
     return () => window.removeEventListener("beforeunload", handleDisconnect);
+  }, []);
+
+  useEffect(() => {
+    function handleAssetChanges() {
+      const tldraw = tldrawRef.current;
+      if (!tldraw) return;
+
+      tldraw.replacePageContent(
+        Object.fromEntries(yShapes.entries()),
+        Object.fromEntries(yBindings.entries()),
+        Object.fromEntries(yAssets.entries()),
+        undefined,
+      );
+    }
+
+    yAssets.observeDeep(handleAssetChanges);
+    return () => yAssets.unobserveDeep(handleAssetChanges);
   }, []);
 
   return {

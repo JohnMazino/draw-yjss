@@ -1,6 +1,6 @@
 import * as Y from "yjs";
 import { WebsocketProvider } from "y-websocket";
-import { TDBinding, TDShape } from "@tldraw/tldraw";
+import { TDAsset, TDBinding, TDShape } from "@tldraw/tldraw";
 
 const VERSION = 1;
 
@@ -24,6 +24,7 @@ export const awareness = provider.awareness;
 
 export const yShapes: Y.Map<TDShape> = doc.getMap("shapes");
 export const yBindings: Y.Map<TDBinding> = doc.getMap("bindings");
+export const yAssets: Y.Map<TDAsset> = doc.getMap("assets");
 
 // Create an undo manager for the shapes and binding maps
 export const undoManager = new Y.UndoManager([yShapes, yBindings]);

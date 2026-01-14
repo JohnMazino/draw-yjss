@@ -1,10 +1,16 @@
 // App.tsx
-import { Tldraw, useFileSystem, TldrawApp } from "@tldraw/tldraw";
+import {
+  Tldraw,
+  useFileSystem,
+  TldrawApp,
+  TDAsset,
+  TDAssetType,
+} from "@tldraw/tldraw";
 import { useUsers } from "y-presence";
 import { useMultiplayerState } from "./hooks/useMultiplayerState";
 import { useCallback, useEffect, useState } from "react";
 import "./styles.css";
-import { awareness, roomID } from "./store";
+import { awareness, doc, roomID, yAssets } from "./store";
 
 // Создаем кастомный компонент с русским языком
 function Editor({ roomId }: { roomId: string }) {
@@ -58,11 +64,10 @@ function Editor({ roomId }: { roomId: string }) {
       showPages={false}
       onMount={handleMount}
       showMenu={false}
-      {...fileSystemEvents}
+      // {...fileSystemEvents}
       {...events}
-      // Кастомная загрузка с правильной сигнатурой
-      onAssetUpload={async (app: TldrawApp, file: File, id: string) => {
-        console.log("Загрузка файла:", file.name);
+      onAssetCreate={async (app: TldrawApp, file: File, id: string) => {
+        console.log("onAssetCreate вызван! Файл:", file.name, "ID:", id);
 
         const formData = new FormData();
         formData.append("file", file);
@@ -76,23 +81,53 @@ function Editor({ roomId }: { roomId: string }) {
             },
           );
 
-          if (!response.ok) {
-            throw new Error(`Ошибка сервера: ${response.status}`);
-          }
+          if (!response.ok)
+            throw new Error("Upload failed: " + response.status);
 
           const { url } = await response.json();
+          console.log("Успешно загружено, URL:", url);
 
-          // Возвращаем ТОЛЬКО URL (string) — tldraw сам обработает тип и id
+          const assetType = file.type.startsWith("video/")
+            ? TDAssetType.Video
+            : TDAssetType.Image;
+
+          const asset = {
+            id: id,
+            type: assetType,
+            src: url,
+            fileName: file.name || "uploaded-file",
+            size: [800, 600] as [number, number],
+          } as TDAsset;
+
+          doc.transact(() => {
+            yAssets.set(id, asset);
+          });
+
           return url;
         } catch (err) {
           console.error("Ошибка загрузки:", err);
 
-          // Fallback: base64 как URL
-          const dataUrl = await new Promise<string>((resolve, reject) => {
+          const dataUrl = await new Promise<string>((res, rej) => {
             const reader = new FileReader();
-            reader.onload = () => resolve(reader.result as string);
-            reader.onerror = reject;
+            reader.onload = () => res(reader.result as string);
+            reader.onerror = rej;
             reader.readAsDataURL(file);
+          });
+
+          const assetType = file.type.startsWith("video/")
+            ? TDAssetType.Video
+            : TDAssetType.Image;
+
+          const asset = {
+            id: id,
+            type: assetType,
+            src: dataUrl,
+            fileName: file.name || "uploaded-file",
+            size: [800, 600] as [number, number],
+          } as TDAsset;
+
+          doc.transact(() => {
+            yAssets.set(id, asset);
           });
 
           return dataUrl;
