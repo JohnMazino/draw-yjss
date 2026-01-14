@@ -60,6 +60,44 @@ function Editor({ roomId }: { roomId: string }) {
       showMenu={false}
       {...fileSystemEvents}
       {...events}
+      // Кастомная загрузка с правильной сигнатурой
+      onAssetUpload={async (app: TldrawApp, file: File, id: string) => {
+        console.log("Загрузка файла:", file.name);
+
+        const formData = new FormData();
+        formData.append("file", file);
+
+        try {
+          const response = await fetch(
+            "https://draw-yjss-assets-production.up.railway.app/upload",
+            {
+              method: "POST",
+              body: formData,
+            },
+          );
+
+          if (!response.ok) {
+            throw new Error(`Ошибка сервера: ${response.status}`);
+          }
+
+          const { url } = await response.json();
+
+          // Возвращаем ТОЛЬКО URL (string) — tldraw сам обработает тип и id
+          return url;
+        } catch (err) {
+          console.error("Ошибка загрузки:", err);
+
+          // Fallback: base64 как URL
+          const dataUrl = await new Promise<string>((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+
+          return dataUrl;
+        }
+      }}
     />
   );
 }
