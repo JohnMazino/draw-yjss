@@ -4,27 +4,55 @@ import { TDAsset, TDBinding, TDShape } from "@tldraw/tldraw";
 
 const VERSION = 1;
 
-// Create the doc
 export const doc = new Y.Doc();
-
 export const roomID = `y-tldraw-${VERSION}`;
 
-// Create a websocket provider
 export const provider = new WebsocketProvider(
   "wss://draw-yjss-server-production.up.railway.app",
   roomID,
   doc,
   {
     connect: true,
+    maxBackoffTime: 10000,
   },
 );
 
-// Export the provider's awareness API
 export const awareness = provider.awareness;
 
 export const yShapes: Y.Map<TDShape> = doc.getMap("shapes");
 export const yBindings: Y.Map<TDBinding> = doc.getMap("bindings");
 export const yAssets: Y.Map<TDAsset> = doc.getMap("assets");
 
-// Create an undo manager for the shapes and binding maps
+console.log("yAssets map создан, clientID:", awareness.clientID);
+
+// Undo только для shapes и bindings (assets не нужно отменять обычно)
 export const undoManager = new Y.UndoManager([yShapes, yBindings]);
+
+// НЕ очищаем yAssets при загрузке страницы!
+// if (typeof window !== 'undefined') { yAssets.clear(); }
+
+// Фикс протокола + лог
+yAssets.observeDeep((events) => {
+  if (events.length === 0) return;
+
+  console.log(`yAssets: ${yAssets.size} ассетов (${events.length} изменений)`);
+
+  // Исправляем http → https если вдруг попало
+  let needsUpdate = false;
+  const updates: Record<string, TDAsset> = {};
+
+  yAssets.forEach((asset, id) => {
+    if ((asset.type === "image" || asset.type === "video") && asset.src?.startsWith("http://")) {
+      updates[id] = { ...asset, src: asset.src.replace(/^http:\/\//, "https://") };
+      needsUpdate = true;
+    }
+  });
+
+  if (needsUpdate) {
+    doc.transact(() => {
+      Object.entries(updates).forEach(([id, fixed]) => {
+        yAssets.set(id, fixed);
+      });
+    });
+  }
+});

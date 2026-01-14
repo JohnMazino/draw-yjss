@@ -1,5 +1,11 @@
-import { TDBinding, TDShape, TDUser, TldrawApp } from "@tldraw/tldraw";
 import { useCallback, useEffect, useRef } from "react";
+import {
+  TDBinding,
+  TDShape,
+  TDUser,
+  TldrawApp,
+} from "@tldraw/tldraw";
+
 import {
   awareness,
   doc,
@@ -13,22 +19,33 @@ import {
 export function useMultiplayerState(roomId: string) {
   const tldrawRef = useRef<TldrawApp>();
 
+  // Основная функция синхронизации всего контента
+  const syncContent = useCallback(() => {
+    const app = tldrawRef.current;
+    if (!app) return;
+
+    app.replacePageContent(
+      Object.fromEntries(yShapes.entries()),
+      Object.fromEntries(yBindings.entries()),
+      Object.fromEntries(yAssets.entries()),
+      undefined,
+    );
+  }, []);
+
+  // onMount
   const onMount = useCallback(
     (app: TldrawApp) => {
       app.loadRoom(roomId);
       app.pause();
       tldrawRef.current = app;
 
-      app.replacePageContent(
-        Object.fromEntries(yShapes.entries()),
-        Object.fromEntries(yBindings.entries()),
-        Object.fromEntries(yAssets.entries()),
-        undefined,
-      );
+      // Первичная загрузка всего состояния из yjs
+      syncContent();
     },
-    [roomId],
+    [roomId, syncContent],
   );
 
+  // Сохранение изменений локального пользователя в yjs
   const onChangePage = useCallback(
     (
       app: TldrawApp,
@@ -36,6 +53,7 @@ export function useMultiplayerState(roomId: string) {
       bindings: Record<string, TDBinding | undefined>,
     ) => {
       undoManager.stopCapturing();
+
       doc.transact(() => {
         Object.entries(shapes).forEach(([id, shape]) => {
           if (!shape) {
@@ -44,6 +62,7 @@ export function useMultiplayerState(roomId: string) {
             yShapes.set(shape.id, shape);
           }
         });
+
         Object.entries(bindings).forEach(([id, binding]) => {
           if (!binding) {
             yBindings.delete(id);
@@ -56,93 +75,71 @@ export function useMultiplayerState(roomId: string) {
     [],
   );
 
-  const onUndo = useCallback(() => {
-    undoManager.undo();
-  }, []);
+  // Undo / Redo
+  const onUndo = useCallback(() => undoManager.undo(), []);
+  const onRedo = useCallback(() => undoManager.redo(), []);
 
-  const onRedo = useCallback(() => {
-    undoManager.redo();
-  }, []);
-
-  /**
-   * Callback to update user's (self) presence
-   */
+  // Передача текущего пользователя в awareness
   const onChangePresence = useCallback((app: TldrawApp, user: TDUser) => {
     awareness.setLocalStateField("tdUser", user);
   }, []);
 
-  /**
-   * Update app users whenever there is a change in the room users
-   */
+  // Синхронизация пользователей (awareness)
   useEffect(() => {
     const onChangeAwareness = () => {
-      const tldraw = tldrawRef.current;
-
-      if (!tldraw || !tldraw.room) return;
+      const app = tldrawRef.current;
+      if (!app || !app.room) return;
 
       const others = Array.from(awareness.getStates().entries())
-        .filter(([key, _]) => key !== awareness.clientID)
-        .map(([_, state]) => state)
-        .filter((user) => user.tdUser !== undefined);
+        .filter(([key]) => key !== awareness.clientID)
+        .map(([, state]) => state)
+        .filter((state): state is { tdUser: TDUser } => !!state.tdUser);
 
-      const ids = others.map((other) => other.tdUser.id as string);
+      const remoteUserIds = others.map((s) => s.tdUser.id);
 
-      Object.values(tldraw.room.users).forEach((user) => {
-        if (user && !ids.includes(user.id) && user.id !== tldraw.room?.userId) {
-          tldraw.removeUser(user.id);
+      // Удаляем пользователей, которые вышли
+      Object.values(app.room.users).forEach((user) => {
+        if (
+          user &&
+          !remoteUserIds.includes(user.id) &&
+          user.id !== app.room?.userId
+        ) {
+          app.removeUser(user.id);
         }
       });
 
-      tldraw.updateUsers(others.map((other) => other.tdUser).filter(Boolean));
+      // Обновляем список пользователей
+      app.updateUsers(others.map((s) => s.tdUser));
     };
 
     awareness.on("change", onChangeAwareness);
-
     return () => awareness.off("change", onChangeAwareness);
   }, []);
 
+  // Синхронизация содержимого при любом изменении yjs-карт
   useEffect(() => {
-    function handleChanges() {
-      const tldraw = tldrawRef.current;
+    // Первичная синхронизация (на случай, если что-то уже было в yjs)
+    syncContent();
 
-      if (!tldraw) return;
+    yShapes.observeDeep(syncContent);
+    yBindings.observeDeep(syncContent);
+    yAssets.observeDeep(syncContent);
 
-      tldraw.replacePageContent(
-        Object.fromEntries(yShapes.entries()),
-        Object.fromEntries(yBindings.entries()),
-        {},
-      );
-    }
+    return () => {
+      yShapes.unobserveDeep(syncContent);
+      yBindings.unobserveDeep(syncContent);
+      yAssets.unobserveDeep(syncContent);
+    };
+  }, [syncContent]);
 
-    yShapes.observeDeep(handleChanges);
-
-    return () => yShapes.unobserveDeep(handleChanges);
-  }, []);
-
+  // Отключение провайдера при уходе со страницы
   useEffect(() => {
-    function handleDisconnect() {
+    const handleDisconnect = () => {
       provider.disconnect();
-    }
+    };
+
     window.addEventListener("beforeunload", handleDisconnect);
-
     return () => window.removeEventListener("beforeunload", handleDisconnect);
-  }, []);
-
-  useEffect(() => {
-    function handleAssetChanges() {
-      const tldraw = tldrawRef.current;
-      if (!tldraw) return;
-
-      tldraw.replacePageContent(
-        Object.fromEntries(yShapes.entries()),
-        Object.fromEntries(yBindings.entries()),
-        Object.fromEntries(yAssets.entries()),
-        undefined,
-      );
-    }
-
-    yAssets.observeDeep(handleAssetChanges);
-    return () => yAssets.unobserveDeep(handleAssetChanges);
   }, []);
 
   return {

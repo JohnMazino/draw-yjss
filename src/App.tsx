@@ -1,4 +1,3 @@
-// App.tsx
 import {
   Tldraw,
   useFileSystem,
@@ -10,52 +9,139 @@ import { useUsers } from "y-presence";
 import { useMultiplayerState } from "./hooks/useMultiplayerState";
 import { useCallback, useEffect, useState } from "react";
 import "./styles.css";
-import { awareness, doc, roomID, yAssets } from "./store";
+import { awareness, doc, roomID, yAssets, yBindings, yShapes } from "./store";
 
-// Создаем кастомный компонент с русским языком
+// Компонент редактора
 function Editor({ roomId }: { roomId: string }) {
   const fileSystemEvents = useFileSystem();
   const { onMount, ...events } = useMultiplayerState(roomId);
   const [app, setApp] = useState<TldrawApp | null>(null);
 
-  // Устанавливаем русский язык при загрузке
+  // Установка русского языка
   useEffect(() => {
-    if (app) {
-      // Нужно найти элемент кнопки русского языка и кликнуть на него
-      setTimeout(() => {
-        const ruButton = document.getElementById("TD-MenuItem-Language-ru");
-        if (ruButton) {
-          // Убираем галочку с английского
-          const enButton = document.getElementById("TD-MenuItem-Language-en");
-          if (enButton) {
-            enButton.setAttribute("aria-checked", "false");
-            enButton.setAttribute("data-state", "unchecked");
-          }
-
-          // Ставим галочку на русский
-          ruButton.setAttribute("aria-checked", "true");
-          ruButton.setAttribute("data-state", "checked");
-
-          // Обновляем язык в приложении
-          app.setSetting("language", "ru");
-        }
-      }, 100);
-    }
+    if (!app) return;
+    app.setSetting("language", "ru");
   }, [app]);
 
   const handleMount = useCallback(
     (appInstance: TldrawApp) => {
       setApp(appInstance);
-
-      // Применяем русские настройки сразу
       appInstance.setSetting("language", "ru");
 
-      // Если есть оригинальный обработчик, вызываем его
       if (onMount) {
         onMount(appInstance);
       }
+
+      const preloadImages = () => {
+        const assets = Object.fromEntries(yAssets.entries());
+        console.log(`Предзагрузка ${Object.keys(assets).length} ассетов`);
+
+        Object.values(assets).forEach((asset: TDAsset) => {
+          if (asset.src && asset.src.startsWith("http")) {
+            const img = new Image();
+            img.crossOrigin = "anonymous";
+            img.src = asset.src;
+            img.onload = () => console.log("Предзагружено:", asset.src);
+            img.onerror = (e) => console.error("Ошибка предзагрузки:", asset.src, e);
+          }
+        });
+      };
+
+      preloadImages();
+
+      const unsubscribe = yAssets.observeDeep(preloadImages);
+      return unsubscribe;
     },
     [onMount],
+  );
+
+  // Загрузка ассета + определение реального размера
+  const onAssetCreate = useCallback(
+    async (app: TldrawApp, file: File, id: string) => {
+      console.log(`onAssetCreate: ${file.name} (id: ${id})`);
+
+      // DataURL для мгновенного отображения (всегда)
+      const dataUrl = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      let serverUrl: string | undefined;
+
+      try {
+        const formData = new FormData();
+        formData.append("file", file);
+
+        const response = await fetch(
+          "https://draw-yjss-assets-production.up.railway.app/upload",
+          { method: "POST", body: formData },
+        );
+
+        if (!response.ok) throw new Error(`Upload failed: ${response.status}`);
+
+        const { url } = await response.json();
+        serverUrl = url;
+        console.log("Загружено на сервер:", url);
+      } catch (err) {
+        console.error("Ошибка загрузки на сервер:", err);
+        // Продолжаем с dataUrl — хотя бы локально видно
+      }
+
+      // Определяем тип и размер
+      const isVideo = file.type.startsWith("video/");
+      const assetType = isVideo ? TDAssetType.Video : TDAssetType.Image;
+
+      // Получаем реальные размеры
+      const size = await new Promise<[number, number]>((resolve) => {
+        if (isVideo) {
+          const video = document.createElement("video");
+          video.src = dataUrl;
+          video.muted = true; // чтобы не играл звук при загрузке
+          video.preload = "metadata";
+
+          video.onloadedmetadata = () => {
+            resolve([video.videoWidth || 800, video.videoHeight || 600]);
+            video.remove();
+          };
+
+          video.onerror = () => {
+            console.warn("Ошибка загрузки метаданных видео");
+            resolve([800, 600]);
+            video.remove();
+          };
+        } else {
+          // Изображение
+          const img = new Image();
+          img.src = dataUrl;
+
+          img.onload = () => {
+            resolve([img.naturalWidth || 800, img.naturalHeight || 600]);
+          };
+
+          img.onerror = () => {
+            console.warn("Ошибка загрузки изображения");
+            resolve([800, 600]);
+          };
+        }
+      });
+
+      const asset: TDAsset = {
+        id,
+        type: assetType,
+        src: serverUrl || dataUrl, // серверный URL в приоритете
+        fileName: file.name || (isVideo ? "video.mp4" : "image.png"),
+        size,
+      };
+
+      doc.transact(() => {
+        yAssets.set(id, asset);
+      });
+
+      return dataUrl; // tldraw ждёт dataURL для быстрого рендера
+    },
+    [],
   );
 
   return (
@@ -64,83 +150,16 @@ function Editor({ roomId }: { roomId: string }) {
       showPages={false}
       onMount={handleMount}
       showMenu={false}
-      // {...fileSystemEvents}
       {...events}
-      onAssetCreate={async (app: TldrawApp, file: File, id: string) => {
-        console.log("onAssetCreate вызван! Файл:", file.name, "ID:", id);
-
-        const formData = new FormData();
-        formData.append("file", file);
-
-        try {
-          const response = await fetch(
-            "https://draw-yjss-assets-production.up.railway.app/upload",
-            {
-              method: "POST",
-              body: formData,
-            },
-          );
-
-          if (!response.ok)
-            throw new Error("Upload failed: " + response.status);
-
-          const { url } = await response.json();
-          console.log("Успешно загружено, URL:", url);
-
-          const assetType = file.type.startsWith("video/")
-            ? TDAssetType.Video
-            : TDAssetType.Image;
-
-          const asset = {
-            id: id,
-            type: assetType,
-            src: url,
-            fileName: file.name || "uploaded-file",
-            size: [800, 600] as [number, number],
-          } as TDAsset;
-
-          doc.transact(() => {
-            yAssets.set(id, asset);
-          });
-
-          return url;
-        } catch (err) {
-          console.error("Ошибка загрузки:", err);
-
-          const dataUrl = await new Promise<string>((res, rej) => {
-            const reader = new FileReader();
-            reader.onload = () => res(reader.result as string);
-            reader.onerror = rej;
-            reader.readAsDataURL(file);
-          });
-
-          const assetType = file.type.startsWith("video/")
-            ? TDAssetType.Video
-            : TDAssetType.Image;
-
-          const asset = {
-            id: id,
-            type: assetType,
-            src: dataUrl,
-            fileName: file.name || "uploaded-file",
-            size: [800, 600] as [number, number],
-          } as TDAsset;
-
-          doc.transact(() => {
-            yAssets.set(id, asset);
-          });
-
-          return dataUrl;
-        }
-      }}
+      onAssetCreate={onAssetCreate}
     />
   );
 }
 
+// Информация о пользователях
 function Info() {
   const users = useUsers(awareness);
-
-  return (
+   return (
     <div className="absolute p-md">
       <div className="flex space-between">
         <span>Подключено пользователей: {users.size}</span>
@@ -148,25 +167,20 @@ function Info() {
     </div>
   );
 }
-
 export default function App() {
-  // Применяем русский язык для всей страницы
   useEffect(() => {
     document.documentElement.lang = "ru";
-
-    // Меняем язык в localStorage tldraw
     localStorage.setItem("tldraw_language", "ru");
+
+    const settings = JSON.parse(localStorage.getItem("tldraw_settings") || "{}");
     localStorage.setItem(
       "tldraw_settings",
-      JSON.stringify({
-        ...JSON.parse(localStorage.getItem("tldraw_settings") || "{}"),
-        language: "ru",
-      }),
+      JSON.stringify({ ...settings, language: "ru" }),
     );
   }, []);
 
   return (
-    <div className="tldraw custom-theme" lang="ru">
+    <div className="tldraw custom-theme h-screen w-screen" lang="ru">
       <Info />
       <Editor roomId={roomID} />
     </div>
