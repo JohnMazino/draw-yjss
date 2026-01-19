@@ -28,20 +28,39 @@ export function useMultiplayerState(roomId: string) {
       }),
     );
 
-    // Получаем все shapes и фильтруем те, что ссылаются на валидные ассеты
+    // Дефолтный стиль для shapes без стиля
+    const defaultStyle = {
+      color: "black",
+      size: "medium",
+      dash: "draw",
+      scale: "1",
+    };
+
+    // Получаем все shapes и фильтруем + исправляем их
     const allShapes = Object.fromEntries(yShapes.entries());
     const validShapes = Object.fromEntries(
-      Object.entries(allShapes).filter(([_, shape]) => {
-        if (!shape) return false;
-        // Если это изображение/видео, проверяем что ассет существует
-        if (shape.assetId && !validAssets[shape.assetId]) {
-          console.warn(
-            `Shape ${shape.id} ссылается на несуществующий ассет ${shape.assetId}`,
-          );
-          return false;
-        }
-        return true;
-      }),
+      Object.entries(allShapes)
+        .filter(([_, shape]) => {
+          if (!shape) return false;
+          // Если это изображение/видео, проверяем что ассет существует
+          if (shape.assetId && !validAssets[shape.assetId]) {
+            console.warn(
+              `Shape ${shape.id} ссылается на несуществующий ассет ${shape.assetId}`,
+            );
+            return false;
+          }
+          return true;
+        })
+        .map(([id, shape]) => {
+          // Убедимся, что у каждого shape есть валидный style объект
+          if (!shape.style || typeof shape.style !== "object") {
+            shape = {
+              ...shape,
+              style: defaultStyle as any,
+            };
+          }
+          return [id, shape];
+        }),
     );
 
     app.replacePageContent(
@@ -74,12 +93,25 @@ export function useMultiplayerState(roomId: string) {
     ) => {
       undoManager.stopCapturing();
 
+      // Дефолтный стиль для shapes без стиля
+      const defaultStyle = {
+        color: "black",
+        size: "medium",
+        dash: "draw",
+        scale: "1",
+      };
+
       doc.transact(() => {
         Object.entries(shapes).forEach(([id, shape]) => {
           if (!shape) {
             yShapes.delete(id);
           } else {
-            yShapes.set(shape.id, shape);
+            // Убедимся, что style всегда присутствует
+            const shapeToSave = {
+              ...shape,
+              style: shape.style || defaultStyle,
+            } as any;
+            yShapes.set(shape.id, shapeToSave);
           }
         });
 
