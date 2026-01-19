@@ -51,8 +51,13 @@ export const useFormulaTools = () => {
         // Небольшая пауза для надёжности
         await new Promise((resolve) => setTimeout(resolve, 100));
 
-        // Используем метод app для создания shape через createImageShape
-        // Это гарантирует, что все необходимые свойства и стили установлены корректно
+        // Получаем стиль по умолчанию из приложения
+        const defaultStyle =
+          app.getPageState().selectedIds.length > 0
+            ? app.getShape(app.getPageState().selectedIds[0])?.style
+            : { color: "black", size: "medium", dash: "draw", scale: "1" };
+
+        // Создаём Shape - изображение с правильным стилем
         const newShape: TDShape = {
           id: shapeId,
           name: "Formula",
@@ -65,14 +70,14 @@ export const useFormulaTools = () => {
           isHidden: false,
           isFinished: true,
           assetId: assetId,
-          // Не устанавливаем style напрямую - пусть app сделает это
+          style: defaultStyle as any,
           meta: {
             isFormula: true,
             formula: formula,
           } as any,
         } as any;
 
-        // Добавляем Shape в Yjs через прямое добавление в store
+        // Добавляем Shape в Yjs
         doc.transact(() => {
           yShapes.set(newShape.id, newShape);
         });
@@ -115,9 +120,17 @@ export const useFormulaTools = () => {
 
         doc.transact(() => {
           yAssets.set(assetId, asset);
+          // Сохраняем существующий style или используем дефолтный
+          const styleToUse = shape.style || {
+            color: "black",
+            size: "medium",
+            dash: "draw",
+            scale: "1",
+          };
           yShapes.set(shapeId, {
             ...shape,
             assetId: assetId,
+            style: styleToUse as any,
             meta: {
               isFormula: true,
               formula: formula,
