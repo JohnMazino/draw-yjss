@@ -31,7 +31,7 @@ export const undoManager = new Y.UndoManager([yShapes, yBindings]);
 // НЕ очищаем yAssets при загрузке страницы!
 // if (typeof window !== 'undefined') { yAssets.clear(); }
 
-// Фикс протокола + лог
+// Фикс протокола + лёгкий лог
 yAssets.observeDeep((events) => {
   if (events.length === 0) return;
 

@@ -1,68 +1,59 @@
 html,
 body {
-    padding: 0;
-    margin: 0;
-    font-family:
-        -apple-system,
-        BlinkMacSystemFont,
-        Segoe UI,
-        Roboto,
-        Oxygen,
-        Ubuntu,
-        Cantarell,
-        Fira Sans,
-        Droid Sans,
-        Helvetica Neue,
-        sans-serif;
+  padding: 0;
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, Oxygen,
+    Ubuntu, Cantarell, Fira Sans, Droid Sans, Helvetica Neue, sans-serif;
 }
 
 a {
-    color: inherit;
-    text-decoration: none;
+  color: inherit;
+  text-decoration: none;
 }
 
 * {
-    box-sizing: border-box;
+  box-sizing: border-box;
 }
 
 .tldraw {
-    position: fixed;
-    top: 0px;
-    left: 0px;
-    right: 0px;
-    bottom: 0px;
-    width: 100%;
-    height: 100%;
+  position: fixed;
+  top: 0px;
+  left: 0px;
+  right: 0px;
+  bottom: 0px;
+  width: 100%;
+  height: 100%;
 }
 
 .p-md {
-    padding: 12px;
+  padding: 12px;
 }
 
 .flex {
-    display: flex;
-    color: aliceblue;
+  display: flex;
+  color: aliceblue;
 }
 
 .space-between {
-    justify-content: space-between;
+  justify-content: space-between;
 }
 
 .color-dodgerblue {
-    color: dodgerblue;
+  color: dodgerblue;
 }
 
 .absolute {
-    position: absolute;
-    z-index: 100;
-    left: 0;
-    right: 0;
-    top: 40px;
+  position: absolute;
+  z-index: 100;
+  left: 0;
+  right: 0;
+  top: 40px;
 }
+/* Контейнер всего приложения (фон холста уже работает, оставляем) */
 .tldraw.custom-theme .tl-canvas,
 .tldraw.custom-theme .tl-canvas-container,
 .tldraw.custom-theme .tl-background {
-    background: #101011 !important; /* тёмный холст */
+  background: #101011 !important;   /* тёмный холст */
 }
 /* Кнопка Image
 #TD-PrimaryTools-Image,
@@ -70,12 +61,100 @@ button[id*="TD-PrimaryTools-Image"],
 .tldraw button[data-tool*="image"],
 .tldraw button[aria-label*="Image"],
 .tldraw button[title*="Image"],
-.tldraw .c-eyvddw:has(svg path[d*="M2.5 1H12.5"]) {  /* SVG path из твоего HTML для image
+.tldraw .c-eyvddw:has(svg path[d*="M2.5 1H12.5"]) {  /* SVG path из твоего HTML для image 
   display: none !important;
 }*/
 /* Убираем кнопку "?" / Help иконку полностью */
 .tldraw .c-yILjc,
 .tldraw button[aria-controls^="radix-"][aria-haspopup="dialog"],
-.tldraw button:has(svg path[d*="M5.07505 4.10001"]) {
-    display: none !important;
+.tldraw button:has(svg path[d*="M5.07505 4.10001"]) {  /* точный path из твоего HTML */
+  display: none !important;
+}
+
+/* Стили для инструмента формул */
+.formula-toolbar {
+  font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Roboto, sans-serif;
+}
+
+.formula-menu {
+  max-height: 500px;
+  overflow-y: auto;
+  animation: slideUp 0.3s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.formula-menu::-webkit-scrollbar {
+  width: 6px;
+}
+
+.formula-menu::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 3px;
+}
+
+.formula-menu::-webkit-scrollbar-thumb {
+  background: #ccc;
+  border-radius: 3px;
+}
+
+.formula-menu::-webkit-scrollbar-thumb:hover {
+  background: #aaa;
+}
+
+.formula-editor {
+  padding: 8px;
+}
+
+.formula-input {
+  font-family: 'Courier New', monospace;
+  font-size: 12px;
+}
+
+.formula-display {
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 4px;
+}
+
+.formula-renderer {
+  font-display: swap;
+}
+
+/* KaTeX математическое отображение */
+.katex {
+  font-size: 1.2em;
+  color: #333;
+}
+
+.katex-display {
+  margin: 0;
+  text-align: center;
+}
+
+.katex-html {
+  display: inline-block;
+}
+
+/* Улучшенная видимость KaTeX */
+.katex .base {
+  position: relative;
+}
+
+.katex .mathrm {
+  font-style: normal;
+}
+
+/* Горячие клавиши подсказка */
+.formula-toolbar button:focus {
+  outline: 2px solid #4a9eff;
+  outline-offset: 2px;
 }

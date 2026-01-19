@@ -1,0 +1,31 @@
+.formula-btn {
+  width: 45px;
+  height: 45px;
+  border-radius: 8px;
+  background-color: #2d2d2d;
+  color: #4a9eff;
+  border: 2px solid #4a9eff;
+  cursor: pointer;
+  font-size: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-weight: bold;
+  position: fixed;
+  right: 20px;
+  bottom: 10px;           
+  z-index: 1000;
+}
+
+.formula-btn.open {
+  background-color: #4a9eff;
+  color: white;
+}
+
+@media (max-width: 768px) {
+  .formula-btn {
+    display: none !important;
+  }
+}

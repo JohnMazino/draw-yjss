@@ -79,7 +79,7 @@ export function useMultiplayerState(roomId: string) {
   const onUndo = useCallback(() => undoManager.undo(), []);
   const onRedo = useCallback(() => undoManager.redo(), []);
 
-  // Передача текущего пользователя в awareness
+  // Передача текущего пользователя в awareness 
   const onChangePresence = useCallback((app: TldrawApp, user: TDUser) => {
     awareness.setLocalStateField("tdUser", user);
   }, []);

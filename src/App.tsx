@@ -10,6 +10,7 @@ import { useMultiplayerState } from "./hooks/useMultiplayerState";
 import { useCallback, useEffect, useState } from "react";
 import "./styles.css";
 import { awareness, doc, roomID, yAssets, yBindings, yShapes } from "./store";
+import { FormulaToolbar } from "./components/FormulaToolbar";
 
 // Компонент редактора
 function Editor({ roomId }: { roomId: string }) {
@@ -55,7 +56,7 @@ function Editor({ roomId }: { roomId: string }) {
     [onMount],
   );
 
-  // Загрузка ассета + определение реального размера
+  // Загрузка ассета + определение реального размера 
   const onAssetCreate = useCallback(
     async (app: TldrawApp, file: File, id: string) => {
       console.log(`onAssetCreate: ${file.name} (id: ${id})`);
@@ -145,14 +146,17 @@ function Editor({ roomId }: { roomId: string }) {
   );
 
   return (
-    <Tldraw
-      autofocus
-      showPages={false}
-      onMount={handleMount}
-      showMenu={false}
-      {...events}
-      onAssetCreate={onAssetCreate}
-    />
+    <>
+      <Tldraw
+        autofocus
+        showPages={false}
+        onMount={handleMount}
+        showMenu={false}
+        {...events}
+        onAssetCreate={onAssetCreate}
+      />
+      <FormulaToolbar app={app} />
+    </>
   );
 }
 
