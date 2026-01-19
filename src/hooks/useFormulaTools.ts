@@ -9,6 +9,14 @@ export interface FormulaData {
 
 const generateId = () => `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
+// Стиль по умолчанию для изображений (необходимо, иначе tldraw не может получить свойства)
+const defaultImageStyle = {
+  color: 'black',
+  size: 'medium',
+  dash: 'draw',
+  scale: '1',
+};
+
 export const useFormulaTools = () => {
   // Добавляет новую формулу на холст как изображение
   const addFormula = useCallback(async (app: TldrawApp, formula: string = 'x^2 + y^2 = z^2') => {
@@ -40,7 +48,10 @@ export const useFormulaTools = () => {
         yAssets.set(assetId, asset);
       });
 
-      // Создаём Shape - изображение
+      // Небольшая пауза для надёжности
+      await new Promise(resolve => setTimeout(resolve, 50));
+
+      // Создаём Shape - изображение с валидным стилем
       const newShape: TDShape = {
         id: shapeId,
         name: 'Formula',
@@ -53,7 +64,7 @@ export const useFormulaTools = () => {
         isHidden: false,
         isFinished: true,
         assetId: assetId,
-        style: {} as any,
+        style: defaultImageStyle as any,
         meta: {
           isFormula: true,
           formula: formula,
@@ -83,7 +94,6 @@ export const useFormulaTools = () => {
 
       // Конвертируем новую формулу
       const imageDataUrl = await formulaToCanvas(formula);
-
       const assetId = generateId();
 
       // Создаём новый Asset
@@ -95,11 +105,15 @@ export const useFormulaTools = () => {
         size: [600, 200],
       };
 
+      // Добавляем задержку для надёжности
+      await new Promise(resolve => setTimeout(resolve, 50));
+
       doc.transact(() => {
         yAssets.set(assetId, asset);
         yShapes.set(shapeId, {
           ...shape,
           assetId: assetId,
+          style: shape.style || defaultImageStyle,
           meta: {
             isFormula: true,
             formula: formula,
