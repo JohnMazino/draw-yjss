@@ -91,7 +91,7 @@ export const FormulaToolbar: React.FC<FormulaToolbarProps> = ({ app }) => {
       const filtered = LATEX_COMMANDS.filter(cmd => 
         cmd.startsWith(afterBackslash) && cmd !== afterBackslash
       );
-      setSuggestions(filtered.slice(0, 5));
+      setSuggestions(filtered);
       setShowSuggestions(filtered.length > 0);
       setSelectedSuggestion(0);
     } else {
@@ -121,27 +121,42 @@ export const FormulaToolbar: React.FC<FormulaToolbarProps> = ({ app }) => {
     }, 0);
   };
 
-  // Обработка клавиш в инпуте
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
-    if (showSuggestions) {
-      if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        setSelectedSuggestion((prev) => (prev + 1) % suggestions.length);
-      } else if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        setSelectedSuggestion((prev) => (prev - 1 + suggestions.length) % suggestions.length);
-      } else if (e.key === 'Enter' && e.ctrlKey === false) {
-        e.preventDefault();
-        insertSuggestion(suggestions[selectedSuggestion]);
-      } else if (e.key === 'Escape') {
-        setShowSuggestions(false);
-      }
-    } else if (e.key === 'Enter' && e.ctrlKey) {
+const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  if (showSuggestions) {
+    if (e.key === 'ArrowDown') {
       e.preventDefault();
-      handleAddFormula();
+      setSelectedSuggestion((prev) => (prev + 1) % suggestions.length);
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedSuggestion((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+    } else if (e.key === 'Enter' && !e.ctrlKey) {   // ← убрал лишнее условие
+      e.preventDefault();
+      insertSuggestion(suggestions[selectedSuggestion]);
+    } else if (e.key === 'Escape') {
+      setShowSuggestions(false);
     }
-  };
+    // Больше НЕ добавляем PageUp/PageDown и НЕ дублируем ArrowUp/Down
+  } else if (e.key === 'Enter' && e.ctrlKey) {
+    e.preventDefault();
+    handleAddFormula();
+  }
+};
+// Прокрутка подсказок к выделенному элементу
+useEffect(() => {
+  if (!showSuggestions || suggestions.length === 0 || !suggestionsRef.current) return;
 
+  const container = suggestionsRef.current;
+  const selected = container.children[selectedSuggestion] as HTMLElement | undefined;
+
+  if (selected) {
+    selected.scrollIntoView({
+      block: 'nearest',
+      behavior: 'smooth',
+    });
+  }
+}, [selectedSuggestion, showSuggestions, suggestions.length]);
+
+  // Добавление формулы на холст
   const handleAddFormula = async () => {
     if (app && formulaInput.trim()) {
       setIsLoading(true);
@@ -155,6 +170,7 @@ export const FormulaToolbar: React.FC<FormulaToolbarProps> = ({ app }) => {
     }
   };
 
+  // Быстрое добавление из шаблона
   const handleQuickFormula = async (formula: string) => {
     if (app) {
       setIsLoading(true);
@@ -166,7 +182,7 @@ export const FormulaToolbar: React.FC<FormulaToolbarProps> = ({ app }) => {
       }
     }
   };
-
+  // Рендеринг компонента
   return (
     <div className="formula-toolbar" style={{
       position: 'absolute',
@@ -345,7 +361,7 @@ export const FormulaToolbar: React.FC<FormulaToolbarProps> = ({ app }) => {
                       value={formulaInput}
                       onChange={handleInputChange}
                       onKeyDown={handleKeyDown}
-                      placeholder="Напишите формулу... (Ctrl+Enter для добавления)"
+                      placeholder="Напишите формулу, можете начать с обратного слэша \"
                       style={{
                         width: '100%',
                         height: '80px',
@@ -378,6 +394,8 @@ export const FormulaToolbar: React.FC<FormulaToolbarProps> = ({ app }) => {
                           borderRadius: '6px',
                           boxShadow: '0 4px 12px rgba(0,0,0,0.3)',
                           zIndex: 10,
+                          maxHeight: '320px',      
+                          overflowY: 'auto',            
                         }}
                       >
                         {suggestions.map((suggestion, idx) => (
@@ -545,15 +563,6 @@ export const FormulaToolbar: React.FC<FormulaToolbarProps> = ({ app }) => {
       <button
   className={`formula-btn ${isOpen ? 'open' : ''}`}
   onClick={() => setIsOpen(!isOpen)}
-  title="Добавить математическую формулу"
-        onMouseEnter={(e) => {
-          const btn = e.target as HTMLButtonElement;
-          btn.style.boxShadow = '0 4px 16px rgba(74, 158, 255, 0.35)';
-        }}
-        onMouseLeave={(e) => {
-          const btn = e.target as HTMLButtonElement;
-          btn.style.boxShadow = '0 2px 8px rgba(0,0,0,0.3)';
-        }}
       >
         ∫
       </button>

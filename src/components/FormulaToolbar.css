@@ -1,27 +1,36 @@
+/* .formula-btn — твоя кнопка */
 .formula-btn {
-  width: 45px;
-  height: 45px;
+  width: 44px;
+  height: 44px;
   border-radius: 8px;
-  background-color: #2d2d2d;
-  color: #4a9eff;
-  border: 2px solid #4a9eff;
-  cursor: pointer;
-  font-size: 22px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: #a0d0ff;                   /* или #60a5fa / #93c5fd */
+  font-size: 24px;
+  font-weight: 500;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
-  font-weight: bold;
+  cursor: pointer;
+  transition: all 120ms ease;
+  box-shadow: none;
   position: fixed;
   right: 20px;
-  bottom: 10px;           
+  bottom: 10px;
   z-index: 1000;
 }
 
-.formula-btn.open {
-  background-color: #4a9eff;
+.formula-btn:hover {
+  background: rgba(74, 158, 255, 0.12);   /* лёгкий голубой оверлей */
+  border-color: rgba(74, 158, 255, 0.3);
+}
+
+.formula-btn.open,
+.formula-btn[data-state="open"] {
+  background: #2e7bff;                /* или #4a9eff / var(--tl-color-selected) */
   color: white;
+  border-color: #2e7bff;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.15);
 }
 
 @media (max-width: 768px) {
