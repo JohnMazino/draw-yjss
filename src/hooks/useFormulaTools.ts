@@ -1,130 +1,136 @@
-import { useCallback } from 'react';
-import { TldrawApp, TDShape, TDShapeType, TDAsset, TDAssetType } from '@tldraw/tldraw';
-import { doc, yShapes, yAssets } from '../store';
-import { formulaToCanvas } from '../utils/formulaConverter';
+import { useCallback } from "react";
+import {
+  TldrawApp,
+  TDShape,
+  TDShapeType,
+  TDAsset,
+  TDAssetType,
+} from "@tldraw/tldraw";
+import { doc, yShapes, yAssets } from "../store";
+import { formulaToCanvas } from "../utils/formulaConverter";
 
 export interface FormulaData {
   formula: string;
 }
 
-const generateId = () => `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-
-// Стиль по умолчанию для изображений (необходимо, иначе tldraw не может получить свойства)
-const defaultImageStyle = {
-  color: 'black',
-  size: 'medium',
-  dash: 'draw',
-  scale: '1',
-};
+const generateId = () =>
+  `shape_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
 export const useFormulaTools = () => {
   // Добавляет новую формулу на холст как изображение
-  const addFormula = useCallback(async (app: TldrawApp, formula: string = 'x^2 + y^2 = z^2') => {
-    if (!app) return;
+  const addFormula = useCallback(
+    async (app: TldrawApp, formula: string = "x^2 + y^2 = z^2") => {
+      if (!app) return;
 
-    try {
-      // Конвертируем формулу в изображение
-      const imageDataUrl = await formulaToCanvas(formula);
+      try {
+        // Конвертируем формулу в изображение
+        const imageDataUrl = await formulaToCanvas(formula);
 
-      const center = {
-        x: app.viewport.width / 2,
-        y: app.viewport.height / 2,
-      };
+        const center = {
+          x: app.viewport.width / 2,
+          y: app.viewport.height / 2,
+        };
 
-      const assetId = generateId();
-      const shapeId = generateId();
+        const assetId = generateId();
+        const shapeId = generateId();
 
-      // Создаём Asset для изображения
-      const asset: TDAsset = {
-        id: assetId,
-        type: TDAssetType.Image,
-        src: imageDataUrl,
-        fileName: 'formula.png',
-        size: [600, 200],
-      };
+        // Создаём Asset для изображения
+        const asset: TDAsset = {
+          id: assetId,
+          type: TDAssetType.Image,
+          src: imageDataUrl,
+          fileName: "formula.png",
+          size: [600, 200],
+        };
 
-      // Добавляем Asset в Yjs
-      doc.transact(() => {
-        yAssets.set(assetId, asset);
-      });
+        // Добавляем Asset в Yjs
+        doc.transact(() => {
+          yAssets.set(assetId, asset);
+        });
 
-      // Небольшая пауза для надёжности
-      await new Promise(resolve => setTimeout(resolve, 50));
+        // Небольшая пауза для надёжности
+        await new Promise((resolve) => setTimeout(resolve, 100));
 
-      // Создаём Shape - изображение с валидным стилем
-      const newShape: TDShape = {
-        id: shapeId,
-        name: 'Formula',
-        parentId: app.currentPageId,
-        type: TDShapeType.Image,
-        point: [center.x - 300, center.y - 100],
-        size: [600, 200],
-        rotation: 0,
-        isLocked: false,
-        isHidden: false,
-        isFinished: true,
-        assetId: assetId,
-        style: defaultImageStyle as any,
-        meta: {
-          isFormula: true,
-          formula: formula,
-        } as any,
-      } as any;
-
-      // Добавляем Shape в Yjs
-      doc.transact(() => {
-        yShapes.set(newShape.id, newShape);
-      });
-
-      // Выбираем новую форму
-      app.select(newShape.id);
-    } catch (error) {
-      console.error('Error adding formula:', error);
-      alert(`Ошибка при добавлении формулы: ${error}`);
-    }
-  }, []);
-
-  // Обновляет формулу
-  const updateFormula = useCallback(async (app: TldrawApp, shapeId: string, formula: string) => {
-    if (!app) return;
-
-    try {
-      const shape = yShapes.get(shapeId);
-      if (!shape || shape.type !== TDShapeType.Image) return;
-
-      // Конвертируем новую формулу
-      const imageDataUrl = await formulaToCanvas(formula);
-      const assetId = generateId();
-
-      // Создаём новый Asset
-      const asset: TDAsset = {
-        id: assetId,
-        type: TDAssetType.Image,
-        src: imageDataUrl,
-        fileName: 'formula.png',
-        size: [600, 200],
-      };
-
-      // Добавляем задержку для надёжности
-      await new Promise(resolve => setTimeout(resolve, 50));
-
-      doc.transact(() => {
-        yAssets.set(assetId, asset);
-        yShapes.set(shapeId, {
-          ...shape,
+        // Используем метод app для создания shape через createImageShape
+        // Это гарантирует, что все необходимые свойства и стили установлены корректно
+        const newShape: TDShape = {
+          id: shapeId,
+          name: "Formula",
+          parentId: app.currentPageId,
+          type: TDShapeType.Image,
+          point: [center.x - 300, center.y - 100],
+          size: [600, 200],
+          rotation: 0,
+          isLocked: false,
+          isHidden: false,
+          isFinished: true,
           assetId: assetId,
-          style: shape.style || defaultImageStyle,
+          // Не устанавливаем style напрямую - пусть app сделает это
           meta: {
             isFormula: true,
             formula: formula,
           } as any,
-        } as any);
-      });
-    } catch (error) {
-      console.error('Error updating formula:', error);
-      alert(`Ошибка при обновлении формулы: ${error}`);
-    }
-  }, []);
+        } as any;
+
+        // Добавляем Shape в Yjs через прямое добавление в store
+        doc.transact(() => {
+          yShapes.set(newShape.id, newShape);
+        });
+
+        // Выбираем новую форму и даём время на синхронизацию
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        app.select(newShape.id);
+      } catch (error) {
+        console.error("Error adding formula:", error);
+        alert(`Ошибка при добавлении формулы: ${error}`);
+      }
+    },
+    [],
+  );
+
+  // Обновляет формулу
+  const updateFormula = useCallback(
+    async (app: TldrawApp, shapeId: string, formula: string) => {
+      if (!app) return;
+
+      try {
+        const shape = yShapes.get(shapeId);
+        if (!shape || shape.type !== TDShapeType.Image) return;
+
+        // Конвертируем новую формулу
+        const imageDataUrl = await formulaToCanvas(formula);
+        const assetId = generateId();
+
+        // Создаём новый Asset
+        const asset: TDAsset = {
+          id: assetId,
+          type: TDAssetType.Image,
+          src: imageDataUrl,
+          fileName: "formula.png",
+          size: [600, 200],
+        };
+
+        // Добавляем задержку для надёжности
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
+        doc.transact(() => {
+          yAssets.set(assetId, asset);
+          yShapes.set(shapeId, {
+            ...shape,
+            assetId: assetId,
+            meta: {
+              isFormula: true,
+              formula: formula,
+            } as any,
+          } as any);
+        });
+      } catch (error) {
+        console.error("Error updating formula:", error);
+        alert(`Ошибка при обновлении формулы: ${error}`);
+      }
+    },
+    [],
+  );
 
   return {
     addFormula,
