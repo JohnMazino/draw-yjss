@@ -1,10 +1,5 @@
 import { useCallback, useEffect, useRef } from "react";
-import {
-  TDBinding,
-  TDShape,
-  TDUser,
-  TldrawApp,
-} from "@tldraw/tldraw";
+import { TDBinding, TDShape, TDUser, TldrawApp } from "@tldraw/tldraw";
 
 import {
   awareness,
@@ -24,10 +19,35 @@ export function useMultiplayerState(roomId: string) {
     const app = tldrawRef.current;
     if (!app) return;
 
+    // Получаем все ассеты и фильтруем те, что имеют правильную структуру
+    const allAssets = Object.fromEntries(yAssets.entries());
+    const validAssets = Object.fromEntries(
+      Object.entries(allAssets).filter(([_, asset]) => {
+        // Оставляем только ассеты с правильной структурой
+        return asset?.id && asset?.type && asset?.src;
+      }),
+    );
+
+    // Получаем все shapes и фильтруем те, что ссылаются на валидные ассеты
+    const allShapes = Object.fromEntries(yShapes.entries());
+    const validShapes = Object.fromEntries(
+      Object.entries(allShapes).filter(([_, shape]) => {
+        if (!shape) return false;
+        // Если это изображение/видео, проверяем что ассет существует
+        if (shape.assetId && !validAssets[shape.assetId]) {
+          console.warn(
+            `Shape ${shape.id} ссылается на несуществующий ассет ${shape.assetId}`,
+          );
+          return false;
+        }
+        return true;
+      }),
+    );
+
     app.replacePageContent(
-      Object.fromEntries(yShapes.entries()),
+      validShapes,
       Object.fromEntries(yBindings.entries()),
-      Object.fromEntries(yAssets.entries()),
+      validAssets,
       undefined,
     );
   }, []);
@@ -79,7 +99,7 @@ export function useMultiplayerState(roomId: string) {
   const onUndo = useCallback(() => undoManager.undo(), []);
   const onRedo = useCallback(() => undoManager.redo(), []);
 
-  // Передача текущего пользователя в awareness 
+  // Передача текущего пользователя в awareness
   const onChangePresence = useCallback((app: TldrawApp, user: TDUser) => {
     awareness.setLocalStateField("tdUser", user);
   }, []);

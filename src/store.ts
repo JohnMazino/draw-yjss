@@ -42,8 +42,14 @@ yAssets.observeDeep((events) => {
   const updates: Record<string, TDAsset> = {};
 
   yAssets.forEach((asset, id) => {
-    if ((asset.type === "image" || asset.type === "video") && asset.src?.startsWith("http://")) {
-      updates[id] = { ...asset, src: asset.src.replace(/^http:\/\//, "https://") };
+    if (
+      (asset.type === "image" || asset.type === "video") &&
+      asset.src?.startsWith("http://")
+    ) {
+      updates[id] = {
+        ...asset,
+        src: asset.src.replace(/^http:\/\//, "https://"),
+      };
       needsUpdate = true;
     }
   });
