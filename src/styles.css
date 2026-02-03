@@ -49,12 +49,12 @@ a {
   right: 0;
   top: 40px;
 }
-/* Контейнер всего приложения (фон холста уже работает, оставляем) */
+/* Контейнер всего приложения (фон холста уже работает, оставляем)
 .tldraw.custom-theme .tl-canvas,
 .tldraw.custom-theme .tl-canvas-container,
 .tldraw.custom-theme .tl-background {
-  background: #101011 !important;   /* тёмный холст */
-}
+  background: #101011 !important;   тёмный холст
+} */
 /* Кнопка Image
 #TD-PrimaryTools-Image,
 button[id*="TD-PrimaryTools-Image"],
