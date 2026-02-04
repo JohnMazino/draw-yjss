@@ -151,7 +151,7 @@ function Editor({ roomId }: { roomId: string }) {
         autofocus
         showPages={false}
         onMount={handleMount}
-        showMenu={false}
+        /*showMenu={false}*/
         {...events}
         onAssetCreate={onAssetCreate}
       />
