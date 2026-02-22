@@ -8,7 +8,7 @@ export const doc = new Y.Doc();
 export const roomID = `y-tldraw-${VERSION}`;
 
 export const provider = new WebsocketProvider(
-  "wss://draw-yjss-server-production.up.railway.app",
+  "wss://draw-yjss-server.onrender.com/",
   roomID,
   doc,
   {
