@@ -76,7 +76,7 @@ function Editor({ roomId }: { roomId: string }) {
         formData.append("file", file);
 
         const response = await fetch(
-          "https://draw-yjss-assets-production.up.railway.app/upload",
+          "https://draw-yjss-assets.onrender.com/upload",
           { method: "POST", body: formData },
         );
 
